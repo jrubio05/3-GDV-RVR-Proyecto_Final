@@ -1,7 +1,7 @@
 CC=g++
 CFLAGS=-g -I. -std=c++11
-DEPS = 
-OBJ = servidor.o
+DEPS = Serializable.h
+OBJ = servidor.o Message.o
 LIBS=-lpthread -lm -lX11 -std=c++11
 
 %.o: %.cc $(DEPS)

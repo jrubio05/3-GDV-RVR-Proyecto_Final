@@ -1,7 +1,7 @@
 CC=g++
 CFLAGS=-g -I. -std=c++11
-DEPS = XLDisplay.h
-OBJ = cliente.o XLDisplay.o
+DEPS = XLDisplay.h Serializable.h
+OBJ = cliente.o XLDisplay.o Message.o
 LIBS=-lpthread -lm -lX11 -std=c++11
 
 %.o: %.cc $(DEPS)

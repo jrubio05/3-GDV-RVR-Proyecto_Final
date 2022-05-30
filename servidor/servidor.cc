@@ -17,6 +17,8 @@ las 4 secciones que SIEMPRE van a estar:
 #include <thread>       // std::thread
 #include <unistd.h>		// sleep
 #include <mutex>		// mutex
+//
+#include "Message.h"	// mensajes de red
 
 const int MAX_USUARIOS = 3;
 const int TAM_BUF_HILO = 128;

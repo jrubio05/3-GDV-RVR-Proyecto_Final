@@ -10,6 +10,8 @@
 #include <mutex>		// mutex
 //
 #include "XLDisplay.h"  // GRÁFICOS
+//
+#include "Message.h"	// mensajes de red
 
 const int TAM_BUF = 128;
 
