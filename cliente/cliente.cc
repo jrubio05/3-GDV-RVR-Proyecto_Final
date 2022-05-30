@@ -1,16 +1,17 @@
-//>./client 127.0.0.1 2222
+// $ ./cliente 127.0.0.1 2222
 
-#include <iostream>	// cout
+#include <iostream>     // cout
 #include <sys/types.h>	// getaddrinfo
 #include <sys/socket.h>	// getaddrinfo
-#include <netdb.h>	// getaddrinfo
-#include <string.h>	// memset
-#include <stdio.h>	// perror
-#include <unistd.h>	// sleep
+#include <netdb.h>      // getaddrinfo
+#include <string.h>     // memset
+#include <stdio.h>      // perror
+#include <unistd.h>     // sleep
+#include <mutex>		// mutex
 //
-#include "XLDisplay.h" // GRÁFICOS
+#include "XLDisplay.h"  // GRÁFICOS
 
-#define BUFFSIZE 128
+const int TAM_BUF = 128;
 
 int TAM_LIENZO; // 8
 int TAM_CELDA; // 50
@@ -19,7 +20,9 @@ bool salir = false;
 int posX = 0;
 int posY = 0;
 
-// MÉTODOS DE DIBUJADO //
+////////////////////pthread_mutex_t cerrojoBLABLALB;
+
+// vvv MÉTODOS DE DIBUJADO vvv //
 
 void pintaCelda(XLDisplay& dpy, int oriX, int oriY, int color)
 {
@@ -93,9 +96,9 @@ void renderizaLienzo(int** celdas)
     dpy.flush();
 }
 
-// MÉTODOS DE DIBUJADO //
+// ^^^ MÉTODOS DE DIBUJADO ^^^ //
 
-// MÉTODOS DE ENTRADA //
+// vvv MÉTODOS DE ENTRADA vvv //
 
 void obtenEntrada(int** celdas)
 {
@@ -154,12 +157,43 @@ void obtenEntrada(int** celdas)
     }
 }
 
-// MÉTODOS DE ENTRADA //
+// ^^^ MÉTODOS DE ENTRADA ^^^ //
 
-// CLIENTE //
+// vvv CLIENTE vvv //
 
-int trataConexion(/*int cliente_sd, int thr*/)///////////////////
+void recibeRed(int sd)
 {
+    char bufferRecepcion[TAM_BUF];
+	char bufferEnvio[TAM_BUF] = "sus"; /////////////////////tmp/////////////////////
+
+    // envío del mensaje
+	ssize_t sbytes = send(sd, bufferEnvio, strlen(bufferEnvio), 0);
+	if (sbytes == -1) {
+		std::cout << "ERROR de cliente al ENVIAR\n";
+		salir = true;
+        return;
+	}
+		
+	// recepción de la réplica
+	int rbytes = recv(sd, bufferRecepcion, strlen(bufferRecepcion), 0);
+    if (rbytes > 0) {
+        // ¡indicar finalización de cadena!
+	    bufferRecepcion[rbytes]='\0';
+        // impresión por pantalla
+	    std::cout << bufferRecepcion;
+    }
+    else if (rbytes == 0) {
+        salir = true;
+    }
+	else {
+		std::cout << "ERROR de cliente al RECIBIR\n";
+		salir = true;
+	}
+}
+
+int trataConexion(int sd)
+{
+    ////tmp////////
     TAM_CELDA = 50;
     TAM_LIENZO = 8;
     ///////////int celdas[TAM_LIENZO][TAM_LIENZO];
@@ -170,12 +204,14 @@ int trataConexion(/*int cliente_sd, int thr*/)///////////////////
             celdas[i][j] = 0;
         }
     }
+    ////tmp////
     
 	XLDisplay::init(TAM_LIENZO * TAM_CELDA, TAM_LIENZO * TAM_CELDA, "Proyecto-Redes");
 
-    while (!salir) {
+    while (!salir) { ///////// hacer que acabe en funcion de recibeRed() /////////
+        recibeRed(sd); ///////// va a tener que ser hilo aparte ///////////
         renderizaLienzo(celdas);
-        obtenEntrada(celdas);
+        obtenEntrada(celdas); ///////// puede que tenga que ser hilo aparte ///////////
     }
 
     return 0;
@@ -214,56 +250,7 @@ int main(int argc, char** argv){
 	}
 	
 	// comunicación
-    trataConexion();
-	/*
-	while (!salir) {
-		
-		char bufferUsuario[BUFFSIZE];
-		char bufferRecepcion[BUFFSIZE];
-		
-		// recoger entrada
-		std::cin.getline(bufferUsuario, BUFFSIZE);
-		/////bufferUsuario[BUFFSIZE - 1] = '\0';
-		/////printf("\t___%li\n", strlen(bufferUsuario));////////////////////////
-		/////sleep(2);
-		///// se traba al rebosar el búffer y no alcanzo a ver por qué
-		if (strlen(bufferUsuario) > BUFFSIZE - 1) { // truncar
-			bufferUsuario[BUFFSIZE - 1] = '\n';
-		}
-		else { // concatenar
-			strncat(bufferUsuario, "\n", 2);
-		}
-		
-		// control: cerrar cliente
-		if (strcmp(bufferUsuario, "Q\n") == 0) {
-			salir = true;
-			continue;
-		}
-		
-		// envío del mensaje
-		ssize_t sbytes = send(sd, bufferUsuario, strlen(bufferUsuario), 0);
-		if (sbytes == -1) {
-			perror(NULL);
-			// ... // cerrar socket
-			freeaddrinfo(result); // liberar memoria dinámica
-			return -1;
-		}
-		
-		// recepción de la réplica
-		int rbytes = recv(sd, bufferRecepcion, strlen(bufferUsuario), 0);
-		if (rbytes == -1) {
-			perror(NULL);
-			// ... // cerrar socket
-			freeaddrinfo(result); // liberar memoria dinámica
-			return -1;
-		}
-		// ¡indicar finalización de cadena!
-		bufferRecepcion[rbytes]='\0';
-		
-		// impresión por pantalla
-		std::cout << bufferRecepcion;
-	}
-	*/
+    trataConexion(sd);
 
 	// ... // cerrar socket
 	
@@ -274,4 +261,4 @@ int main(int argc, char** argv){
 	return 0;
 }
 
-// CLIENTE //
+// ^^^ CLIENTE ^^^ //
