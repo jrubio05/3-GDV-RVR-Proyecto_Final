@@ -13,8 +13,8 @@
 #define BUFFSIZE 128
 
 ////////////////////////////////////tmp/////////////////////
-const int TAM_LIENZO = 50;
-const int TAM_CELDA = 8;
+const int TAM_LIENZO = 8;
+const int TAM_CELDA = 50;
 ////////////////////////////////////tmp/////////////////////
 
 bool salir = false;
