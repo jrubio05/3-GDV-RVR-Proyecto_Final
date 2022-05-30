@@ -155,6 +155,7 @@ int main(int argc, char** argv){
 		return -1;
 	}
 	
+	bool aux = true;
 	//ACEPTAR UNA NUEVA CONEXIÓN (PRIMER WHILE)
 	while (aceptaConexiones) {
 		///pthread_mutex_lock(&cerrojoHilos);
@@ -169,6 +170,8 @@ int main(int argc, char** argv){
 		// aceptar conexión
 		int hl = buscaHiloLibre(); // BLOQUEANTE //
 		if (hl != -1) {
+			aux = true;
+			
 			printf("(!) Hilo para la siguiente conexión: %i\n", hl);
 			int client_sd = accept(sd, (struct sockaddr*) &client, &clientlen);
 			if (client_sd == -1) {
@@ -191,7 +194,9 @@ int main(int argc, char** argv){
 			usuarios[hl].detach();
 		}
 		else {
-			printf("Imposible conectarse: número máximo de usuarios alcanzado\n");
+			if (aux)
+				printf("Imposible conectarse: número máximo de usuarios alcanzado...\n");
+			aux = false;
 		}
 
 		///pthread_mutex_lock(&cerrojoHilos);
