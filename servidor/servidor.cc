@@ -1,9 +1,4 @@
-/// mitcp --- ahora se trata una conexión en lugar de mensajes
-
-/*
->./echo_server 0.0.0.0 2222
-> nc 127.0.0.1 2222
-*/
+//>./server 0.0.0.0 2222
 
 /*
 las 4 secciones que SIEMPRE van a estar:
@@ -22,13 +17,16 @@ las 4 secciones que SIEMPRE van a estar:
 #include <thread>       // std::thread
 #include <unistd.h>		// sleep
 #include <mutex>		// mutex
-///////////////////////////////////////////#include <vector>       // std::vector
 
 const int MAX_USUARIOS = 3;
 
+const int TAM_CELDA = 50;
+const int TAM_LIENZO = 8;
+
+int celdas[TAM_LIENZO][TAM_LIENZO];
+
 bool salir = false;
 int numUsuarios = 0;
-///////////////std::vector<std::thread> usuarios;
 std::thread usuarios[MAX_USUARIOS];
 bool hilosLibres[MAX_USUARIOS];
 pthread_mutex_t cerrojoHilos;
@@ -152,7 +150,7 @@ int main(int argc, char** argv){
 	int juan = bind(sd, result->ai_addr, result->ai_addrlen);
 	if (juan == -1) {
 		perror("Error bind: ");
-		free(&sd); // cerrar socket
+		// ... // cerrar socket
 		freeaddrinfo(result); // liberar memoria dinámica
 		return -1;
 	}
@@ -161,17 +159,13 @@ int main(int argc, char** argv){
 	int paco = listen(sd, 16);
 	if (paco == -1) {
 		perror("Error listen: ");
-		free(&sd); // cerrar socket
+		// ... // cerrar socket
 		freeaddrinfo(result); // liberar memoria dinámica
 		return -1;
 	}
 	
 	//ACEPTAR UNA NUEVA CONEXIÓN (PRIMER WHILE)
 	while (!salir) {
-		//////////////////////char buffer[128];
-		//////////////////////char host[NI_MAXHOST];
-		//////////////////////char serv[NI_MAXSERV];
-
 		pthread_mutex_lock(&cerrojoHilos);
 		printf("ENTRA-%i\n", numUsuarios);
 		pthread_mutex_unlock(&cerrojoHilos);
@@ -188,7 +182,7 @@ int main(int argc, char** argv){
 			int client_sd = accept(sd, (struct sockaddr*) &client, &clientlen);
 			if (client_sd == -1) {
 				perror("Error accept: ");
-				free(&sd); // cerrar socket
+				// ... // cerrar socket
 				freeaddrinfo(result); // liberar memoria dinámica
 				return -1;
 			}
@@ -201,36 +195,13 @@ int main(int argc, char** argv){
 			numUsuarios++;
 			hilosLibres[hl] = false;
 			pthread_mutex_unlock(&cerrojoHilos);
+			/**/
 			usuarios[hl] = std::thread(trataConexion, client_sd, hl);
 			usuarios[hl].detach();
 		}
 		else {
 			printf("Imposible conectarse: número máximo de usuarios alcanzado\n");
 		}
-		
-		/*
-		int pepe = getnameinfo(
-			(struct sockaddr*) &client, clientlen,
-			host, NI_MAXHOST,
-			serv, NI_MAXSERV,
-			NI_NUMERICHOST | NI_NUMERICSERV);
-		if (pepe != 0) { // error?
-			std::cerr << "Error getnameinfo: " << gai_strerror(pepe) << "\n";
-			free(&sd); // cerrar socket
-			freeaddrinfo(result); // liberar memoria dinámica
-			return -1;
-		}
-
-		// impresión por pantalla
-		printf("Conexión desde %s:%s\n",host, serv);
-		*/
-
-	//....
-
-		/*
-		// impresión por pantalla
-		printf("Conexión %s:%s terminada\n",host, serv);
-		*/
 
 		pthread_mutex_lock(&cerrojoHilos);
 		printf("SALE-%i\n", numUsuarios);
@@ -241,8 +212,7 @@ int main(int argc, char** argv){
 	for (int i = 0; i < MAX_USUARIOS; i++)
 		usuarios[i].join();
 	
-	// cerrar socket
-	free(&sd);
+	// ... // cerrar socket
 	
 	// liberar memoria dinámica
 	freeaddrinfo(result);
@@ -252,80 +222,3 @@ int main(int argc, char** argv){
 	// éxito
 	return 0;
 }
-
-/*
-std::thread first (foo);     // spawn new thread that calls foo()
-  std::thread second (bar,0);  // spawn new thread that calls bar(0)
-
-  std::cout << "main, foo and bar now execute concurrently...\n";
-
-*/
-
-/*
-namespace {
-  std::vector<std::thread> workers;
-
-  int total = 4;
-  int arr[4] = {0};
-
-  void each_thread_does(int i) {
-    arr[i] += 2;
-  }
-}
-
-int main(int argc, char *argv[]) {
-  for (int i = 0; i < 8; ++i) { // for 8 iterations,
-    for (int j = 0; j < 4; ++j) {
-      workers.push_back(std::thread(each_thread_does, j));
-    }
-    for (std::thread &t: workers) {
-      if (t.joinable()) {
-        t.join();
-      }
-    }
-    arr[4] = std::min_element(arr, arr+4);
-  }
-  return 0;
-}
-*/
-
-/*
-Inicializar un mutex:
-	int pthread_mutex_init(pthread_mutex_t *mutex, pthread_mutexattr_t *attr);
-Destruir un mutex:
-	int pthread_mutex_destroy(pthread_mutex_t*mutex);
-Obtener el mutex o bloquear al hilo si el mutex lo tiene otro hilo:
-	int pthread_mutex_lock(pthread_mutex_t *mutex);
-Liberar el mutex:
-	int pthread_mutex_unlock(pthread_mutex_t *mutex);
-*/
-
-
-/*
-
-		//TRATAR LA CONEXIÓN (SEGUNDO WHILE)
-		// aceptar conexión
-		int hl = buscaHiloLibre(); // BLOQUEANTE //
-		if (hl != -1) {
-			printf("(!) Adjudicado %i\n", hl);
-			int client_sd = accept(sd, (struct sockaddr*) &client, &clientlen);
-			if (client_sd == -1) {
-				perror("Error accept: ");
-				free(&sd); // cerrar socket
-				freeaddrinfo(result); // liberar memoria dinámica
-				return -1;
-			}
-
-			// impresión por pantalla
-			printf("Conexión nueva\n");
-
-			//TRATAR LA CONEXIÓN (SEGUNDO WHILE)
-			//////usuarios.push_back(std::thread(trataConexion, 0));
-			//////for (int i = 0; i < MAX_USUARIOS; i++)
-			usuarios[hl] = std::thread(trataConexion, client_sd, hl);
-			usuarios[hl].detach();
-		}
-		else {
-			printf("Imposible conectarse: número máximo de usuarios alcanzado\n");
-		}
-*/
