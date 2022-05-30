@@ -1,4 +1,4 @@
-//>./server 0.0.0.0 2222
+// $ ./servidor 0.0.0.0 2222
 
 /*
 las 4 secciones que SIEMPRE van a estar:
@@ -19,6 +19,7 @@ las 4 secciones que SIEMPRE van a estar:
 #include <mutex>		// mutex
 
 const int MAX_USUARIOS = 3;
+const int TAM_BUF_HILO = 128;
 
 const int TAM_CELDA = 50;
 const int TAM_LIENZO = 8;
@@ -65,47 +66,31 @@ int trataConexion(int cliente_sd, int thr) {
 
 	std::cout << "Hilo " << thr << " trabajando\n";
 	
-	sleep(5);
-	
-	/*
-	while (conexion) {
-		//ssize_t c = recv(client_sd, &(buffer[bytes]), 1, 0); // ¡se usa client_sd!
-		//ssize_t sbytes = send(client_sd, buffer, bytes, 0); // ¡se usa client_sd!
-	}
+	bool conexion = true;
 
-	int conn = 1;
-		while (conn) {
-			ssize_t c = 1;
-			int bytes = 0;
-			int finCadena = 0;
-			// se reciben hasta 127 bytes y luego se termina el búffer con \n
-			while (c > 0 && bytes < 127 && !finCadena) {
-				c = recv(client_sd, &(buffer[bytes]), 1, 0); // ¡se usa client_sd!
-				if (buffer[bytes] == '\n')
-					finCadena = 1;
-				bytes++;
-			}
-			if (c < 0) { // error
-				perror(NULL);
-				conn = 0;
-				continue;
-			}
-			else if (c == 0) { // cierre ordenado
-				conn = 0;
-				continue;
-			}
-		
-			// ¡indicar finalización de cadena!
-			buffer[bytes]='\0';
-		
-			// reenvío del mensaje
-			ssize_t sbytes = send(client_sd, buffer, bytes, 0); // ¡se usa client_sd, no del propio descriptor sd!
-			if (sbytes == -1) {
-				perror(NULL);
-				conn = 0;
+	while (conexion) {
+		char bufferR[TAM_BUF_HILO];
+		char bufferS[TAM_BUF_HILO] = "sus"; /////////////////////tmp/////////////////////
+		// /!\ NO RECIBIR MÁS DE (TAM_BUF_HILO - 1)
+		ssize_t rbytes = recv(cliente_sd, bufferR, 1, 0);
+		bufferR[TAM_BUF_HILO - 1]='\0'; // ...
+		if (rbytes > 0) {
+			bufferR[rbytes]='\0'; // ¡indicar finalización de cadena!
+			//////////////////////////////////////////bufferS[TAM_BUF_HILO - 1]='\0'; // ...
+			ssize_t sbytes = send(cliente_sd, bufferS, rbytes, 0);
+			if (sbytes < 0) {
+				std::cout << "ERROR al ENVIAR desde el hilo " << thr << "\n";
+				conexion = false;
 			}
 		}
-	*/
+		else if (rbytes == 0) {
+			conexion = false;
+		}
+		else {
+			std::cout << "ERROR al RECIBIR en el hilo " << thr << "\n";
+			conexion = false;
+		}
+	}
 
 	// impresión por pantalla
 	std::cout << "Hilo " << thr << " ha terminado\n";
@@ -172,9 +157,9 @@ int main(int argc, char** argv){
 	
 	//ACEPTAR UNA NUEVA CONEXIÓN (PRIMER WHILE)
 	while (aceptaConexiones) {
-		pthread_mutex_lock(&cerrojoHilos);
-		printf("ENTRA-%i\n", numUsuarios);
-		pthread_mutex_unlock(&cerrojoHilos);
+		///pthread_mutex_lock(&cerrojoHilos);
+		///printf("ENTRA-%i\n", numUsuarios);
+		///pthread_mutex_unlock(&cerrojoHilos);
 		
 		// socket cliente y su tamaño
 		struct sockaddr_in client;
@@ -184,7 +169,7 @@ int main(int argc, char** argv){
 		// aceptar conexión
 		int hl = buscaHiloLibre(); // BLOQUEANTE //
 		if (hl != -1) {
-			printf("(!) Adjudicado %i\n", hl);
+			printf("(!) Hilo para la siguiente conexión: %i\n", hl);
 			int client_sd = accept(sd, (struct sockaddr*) &client, &clientlen);
 			if (client_sd == -1) {
 				perror("Error accept: ");
@@ -194,7 +179,7 @@ int main(int argc, char** argv){
 			}
 
 			// impresión por pantalla
-			printf("Conexión nueva\n");
+			//printf("Conexión nueva\n");
 
 			//TRATAR LA CONEXIÓN (SEGUNDO WHILE)
 			pthread_mutex_lock(&cerrojoHilos);
@@ -209,9 +194,9 @@ int main(int argc, char** argv){
 			printf("Imposible conectarse: número máximo de usuarios alcanzado\n");
 		}
 
-		pthread_mutex_lock(&cerrojoHilos);
-		printf("SALE-%i\n", numUsuarios);
-		pthread_mutex_unlock(&cerrojoHilos);
+		///pthread_mutex_lock(&cerrojoHilos);
+		///printf("SALE-%i\n", numUsuarios);
+		///pthread_mutex_unlock(&cerrojoHilos);
 	}
 
 	// (i) no hay que esperar a que terminen los hilos de usuario (detach)
