@@ -12,13 +12,10 @@
 
 #define BUFFSIZE 128
 
-////////////////////////////////////tmp/////////////////////
-const int TAM_LIENZO = 8;
-const int TAM_CELDA = 50;
-////////////////////////////////////tmp/////////////////////
+int TAM_LIENZO; // 8
+int TAM_CELDA; // 50
 
 bool salir = false;
-int celdas[TAM_LIENZO][TAM_LIENZO];
 int posX = 0;
 int posY = 0;
 
@@ -76,7 +73,7 @@ void pintaSeleccionCelda(XLDisplay& dpy, int oriX, int oriY)
     dpy.line(oriX, oriY + TAM_CELDA - 1, oriX + TAM_CELDA, oriY + TAM_CELDA - 1);
 }
 
-void renderizaLienzo()
+void renderizaLienzo(int** celdas)
 {
     XLDisplay& dpy = XLDisplay::display();
 
@@ -100,7 +97,7 @@ void renderizaLienzo()
 
 // MÉTODOS DE ENTRADA //
 
-void obtenEntrada()
+void obtenEntrada(int** celdas)
 {
     XLDisplay& dpy = XLDisplay::display();
 
@@ -163,17 +160,22 @@ void obtenEntrada()
 
 int trataConexion(/*int cliente_sd, int thr*/)///////////////////
 {
+    TAM_CELDA = 50;
+    TAM_LIENZO = 8;
+    ///////////int celdas[TAM_LIENZO][TAM_LIENZO];
+    int** celdas = new int*[TAM_LIENZO];
+    for(int i = 0; i < TAM_LIENZO; i++){
+        celdas[i] = new int[TAM_LIENZO];
+        for(int j = 0; j < TAM_LIENZO; j++){
+            celdas[i][j] = 0;
+        }
+    }
+    
 	XLDisplay::init(TAM_LIENZO * TAM_CELDA, TAM_LIENZO * TAM_CELDA, "Proyecto-Redes");
 
-	///////tmp
-    for (int i = 0; i < TAM_LIENZO; i++)
-        for (int j = 0; j < TAM_LIENZO; j++)
-            celdas[i][j] = 5;
-	///////tmp
-
     while (!salir) {
-        renderizaLienzo();
-        obtenEntrada();
+        renderizaLienzo(celdas);
+        obtenEntrada(celdas);
     }
 
     return 0;

@@ -22,10 +22,12 @@ const int MAX_USUARIOS = 3;
 
 const int TAM_CELDA = 50;
 const int TAM_LIENZO = 8;
+//
+const int COL_LIENZO = 5;
 
 int celdas[TAM_LIENZO][TAM_LIENZO];
 
-bool salir = false;
+bool aceptaConexiones = true;
 int numUsuarios = 0;
 std::thread usuarios[MAX_USUARIOS];
 bool hilosLibres[MAX_USUARIOS];
@@ -121,6 +123,10 @@ int main(int argc, char** argv){
 	for (int i = 0; i < MAX_USUARIOS; i++)
 		hilosLibres[i] = true;
 
+    for (int i = 0; i < TAM_LIENZO; i++)
+        for (int j = 0; j < TAM_LIENZO; j++)
+            celdas[i][j] = COL_LIENZO;
+
 	pthread_mutex_init(&cerrojoHilos, NULL);
 
 	// criterios
@@ -165,7 +171,7 @@ int main(int argc, char** argv){
 	}
 	
 	//ACEPTAR UNA NUEVA CONEXIÓN (PRIMER WHILE)
-	while (!salir) {
+	while (aceptaConexiones) {
 		pthread_mutex_lock(&cerrojoHilos);
 		printf("ENTRA-%i\n", numUsuarios);
 		pthread_mutex_unlock(&cerrojoHilos);
