@@ -13,12 +13,13 @@
 //
 #include "Message.h"	// mensajes de red
 
-const int TAM_BUF = 128;
-
-int TAM_LIENZO; // 8
-int TAM_CELDA; // 50
+int TAM_LIENZO;
+int TAM_CELDA;
+//
+const int COL_LIENZO = 5;
 
 bool salir = false;
+bool sincronizado = false;
 int posX = 0;
 int posY = 0;
 
@@ -78,7 +79,7 @@ void pintaSeleccionCelda(XLDisplay& dpy, int oriX, int oriY)
     dpy.line(oriX, oriY + TAM_CELDA - 1, oriX + TAM_CELDA, oriY + TAM_CELDA - 1);
 }
 
-void renderizaLienzo(int** celdas)
+void renderizaLienzo(int** &celdas)
 {
     XLDisplay& dpy = XLDisplay::display();
 
@@ -100,9 +101,93 @@ void renderizaLienzo(int** celdas)
 
 // ^^^ MÉTODOS DE DIBUJADO ^^^ //
 
+// vvv CLIENTE vvv //
+
+int enviaRed(int sd, Message msg)
+{
+    //char bufferEnvio[Message::MESSAGE_SIZE];
+    
+    //Serializar el objeto
+    msg.to_bin();
+
+    //Enviar el objeto binario usando el socket sd
+	ssize_t sbytes = send(sd, msg.data(), Message::MESSAGE_SIZE, 0);
+	if (sbytes < 0) {
+		std::cout << "ERROR de cliente al ENVIAR\n";
+		salir = true;
+        return -1;
+	}
+
+    return 0;
+}
+
+int recibeRed(int sd, int** &celdas)
+{
+    char bufferRecepcion[Message::MESSAGE_SIZE];
+
+	ssize_t rbytes = recv(sd, bufferRecepcion, Message::MESSAGE_SIZE, 0);
+    if (rbytes < 0) {
+		std::cout << "ERROR de cliente al RECIBIR\n";
+		salir = true;
+        return -1;
+	}
+
+    Message msg;
+    msg.from_bin(bufferRecepcion);
+
+    switch (msg.msgType)
+    {
+    case Message::SYNCRES:
+        if (!sincronizado) {
+            if (msg.xPos_canvasSize >= 0 && msg.yPos_cellSize >= 0) 
+            {
+                TAM_CELDA = msg.yPos_cellSize;
+                TAM_LIENZO = msg.xPos_canvasSize;
+                /**/
+                celdas = new int*[TAM_LIENZO];
+                for(int i = 0; i < TAM_LIENZO; i++) {
+                    celdas[i] = new int[TAM_LIENZO];
+                    for(int j = 0; j < TAM_LIENZO; j++) {
+                       celdas[i][j] = COL_LIENZO;
+                    }
+                }
+                sincronizado = true;
+            }
+            else {
+                std::cout << "MENSAJE inválido: sincronización ilegal\n";
+                return -1;
+            }
+        }
+        else {
+            std::cout << "MENSAJE inválido: sincronización doble\n";
+        }
+        break;
+    case Message::UPDATE:
+        if (sincronizado && msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&
+            msg.yPos_cellSize < TAM_LIENZO && msg.yPos_cellSize >= 0) {
+            celdas[msg.xPos_canvasSize][msg.yPos_cellSize] = msg.cellValue;
+        }
+        else {
+            std::cout << "MENSAJE inválido: actualización ilegal\n";
+        }
+        break;
+    case Message::SYNCREQ: // ¿? //
+        std::cout << "MENSAJE inválido: cliente recibe 'SYNCREQ'\n";
+        break;
+    case Message::EXIT:
+    default:
+        salir = true;
+        break;
+    }
+
+    return 0;
+}
+
+// ^^^ CLIENTE ^^^ //
+
 // vvv MÉTODOS DE ENTRADA vvv //
 
-void obtenEntrada(int** celdas)
+void obtenEntrada(int sd)
 {
     XLDisplay& dpy = XLDisplay::display();
 
@@ -114,31 +199,41 @@ void obtenEntrada(int** celdas)
     } while (k != 'q' && k != 'w' && k != 'a' && k != 's' && k != 'd' &&
         k != '0' && k != '1' && k != '2' && k != '3' && k != '4' && k != '5' && k != '6');
     
+    Message msg;
+
     switch (k) {
         default:
         case 'q':
-            salir = true;
+            msg = Message(Message::EXIT, 0, 0, 0);
+            enviaRed(sd, msg);
             break;
         case '0':
-            celdas[posX][posY] = 0;
+            msg = Message(Message::UPDATE, posX, posY, 0);
+            enviaRed(sd, msg);
             break;
         case '1':
-            celdas[posX][posY] = 1;
+            msg = Message(Message::UPDATE, posX, posY, 1);
+            enviaRed(sd, msg);
             break;
         case '2':
-            celdas[posX][posY] = 2;
+            msg = Message(Message::UPDATE, posX, posY, 2);
+            enviaRed(sd, msg);
             break;
         case '3':
-            celdas[posX][posY] = 3;
+            msg = Message(Message::UPDATE, posX, posY, 3);
+            enviaRed(sd, msg);
             break;
         case '4':
-            celdas[posX][posY] = 4;
+            msg = Message(Message::UPDATE, posX, posY, 4);
+            enviaRed(sd, msg);
             break;
         case '5':
-            celdas[posX][posY] = 5;
+            msg = Message(Message::UPDATE, posX, posY, 5);
+            enviaRed(sd, msg);
             break;
         case '6':
-            celdas[posX][posY] = 6;
+            msg = Message(Message::UPDATE, posX, posY, 6);
+            enviaRed(sd, msg);
             break;
         case 'w':
             if (posY - 1 >= 0)
@@ -163,57 +258,36 @@ void obtenEntrada(int** celdas)
 
 // vvv CLIENTE vvv //
 
-void recibeRed(int sd)
-{
-    char bufferRecepcion[TAM_BUF];
-	char bufferEnvio[TAM_BUF] = "sus"; /////////////////////tmp/////////////////////
-
-    // envío del mensaje
-	ssize_t sbytes = send(sd, bufferEnvio, strlen(bufferEnvio), 0);
-	if (sbytes == -1) {
-		std::cout << "ERROR de cliente al ENVIAR\n";
-		salir = true;
-        return;
-	}
-		
-	// recepción de la réplica
-	int rbytes = recv(sd, bufferRecepcion, strlen(bufferRecepcion), 0);
-    if (rbytes > 0) {
-        // ¡indicar finalización de cadena!
-	    bufferRecepcion[rbytes]='\0';
-        // impresión por pantalla
-	    std::cout << bufferRecepcion;
-    }
-    else if (rbytes == 0) {
-        salir = true;
-    }
-	else {
-		std::cout << "ERROR de cliente al RECIBIR\n";
-		salir = true;
-	}
-}
-
 int trataConexion(int sd)
 {
-    ////tmp////////
-    TAM_CELDA = 50;
-    TAM_LIENZO = 8;
-    ///////////int celdas[TAM_LIENZO][TAM_LIENZO];
-    int** celdas = new int*[TAM_LIENZO];
-    for(int i = 0; i < TAM_LIENZO; i++){
-        celdas[i] = new int[TAM_LIENZO];
-        for(int j = 0; j < TAM_LIENZO; j++){
-            celdas[i][j] = 0;
-        }
-    }
-    ////tmp////
+    // celdas del lado cliente
+    int** celdas;
     
-	XLDisplay::init(TAM_LIENZO * TAM_CELDA, TAM_LIENZO * TAM_CELDA, "Proyecto-Redes");
+    // sincro
+    Message peticion = Message(Message::SYNCREQ, 0, 0, 0);
+    enviaRed(sd, peticion);
+    /**/
+    int aux = 0;
+    while (!sincronizado && aux == 0) {
+        aux = recibeRed(sd, celdas);
+    }
+    if (aux == -1) {
+        std::cout << "NO se pudo compartir el lienzo del servidor\n";
+        return -1;    
+    }
 
-    while (!salir) { ///////// hacer que acabe en funcion de recibeRed() /////////
-        recibeRed(sd); ///////// va a tener que ser hilo aparte ///////////
+    // bucle principal
+	XLDisplay::init(TAM_LIENZO * TAM_CELDA, TAM_LIENZO * TAM_CELDA, "Proyecto-Redes");
+    while (!salir) {
         renderizaLienzo(celdas);
-        obtenEntrada(celdas); ///////// puede que tenga que ser hilo aparte ///////////
+        std::cout << "UNO\n";
+        obtenEntrada(sd);        ///////// puede que tenga que ser hilo aparte ///////////
+        std::cout << "DOS\n";
+        recibeRed(sd, celdas);   ///////// va a tener que ser hilo aparte, es BLOQUEANTE ///////////
+        std::cout << "TRES\n";
+        /*
+        //recibe render obten --> NO TERMINA, SE QUEDA EN RECIBIR
+        */
     }
 
     return 0;
@@ -264,3 +338,9 @@ int main(int argc, char** argv){
 }
 
 // ^^^ CLIENTE ^^^ //
+
+/*
+TENGO QUE BORRAR LA MEMORIA DINÁMICA DE LAS CELDAS **
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+QUE NO SE ME OLVIDE
+*/

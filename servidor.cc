@@ -21,7 +21,6 @@ las 4 secciones que SIEMPRE van a estar:
 #include "Message.h"	// mensajes de red
 
 const int MAX_USUARIOS = 3;
-const int TAM_BUF_HILO = 128;
 
 const int TAM_CELDA = 50;
 const int TAM_LIENZO = 8;
@@ -57,6 +56,20 @@ int buscaHiloLibre() { // BLOQUEANTE //
 	}
 }
 
+int enviaRed(int sd, Message msg, bool& conexion, int thr)
+{
+    msg.to_bin();
+
+	ssize_t sbytes = send(sd, msg.data(), Message::MESSAGE_SIZE, 0);
+	if (sbytes < 0) {
+		std::cout << "ERROR de servidor al ENVIAR desde el hilo " << thr << "\n";
+		conexion = false;
+        return -1;
+	}
+
+    return 0;
+}
+
 //TRATAR LA CONEXIÓN (SEGUNDO WHILE)
 int trataConexion(int cliente_sd, int thr) {
 	/*
@@ -71,26 +84,50 @@ int trataConexion(int cliente_sd, int thr) {
 	bool conexion = true;
 
 	while (conexion) {
-		char bufferR[TAM_BUF_HILO];
-		char bufferS[TAM_BUF_HILO] = "sus"; /////////////////////tmp/////////////////////
-		// /!\ NO RECIBIR MÁS DE (TAM_BUF_HILO - 1)
-		ssize_t rbytes = recv(cliente_sd, bufferR, 1, 0);
-		bufferR[TAM_BUF_HILO - 1]='\0'; // ...
-		if (rbytes > 0) {
-			bufferR[rbytes]='\0'; // ¡indicar finalización de cadena!
-			//////////////////////////////////////////bufferS[TAM_BUF_HILO - 1]='\0'; // ...
-			ssize_t sbytes = send(cliente_sd, bufferS, rbytes, 0);
-			if (sbytes < 0) {
-				std::cout << "ERROR al ENVIAR desde el hilo " << thr << "\n";
-				conexion = false;
-			}
-		}
-		else if (rbytes == 0) {
-			conexion = false;
-		}
-		else {
+		char bufferR[Message::MESSAGE_SIZE];
+
+		ssize_t rbytes = recv(cliente_sd, bufferR, Message::MESSAGE_SIZE, 0);
+		if (rbytes < 0) {
 			std::cout << "ERROR al RECIBIR en el hilo " << thr << "\n";
 			conexion = false;
+			continue;
+		}
+
+		Message msg;
+    	msg.from_bin(bufferR);
+
+		Message resp;
+		switch (msg.msgType)
+		{
+		case Message::SYNCREQ:
+			// enviar respuesta al cliente en concreto
+			resp = Message(Message::SYNCRES, TAM_LIENZO, TAM_CELDA, msg.cellValue);
+			enviaRed(cliente_sd, resp, conexion, thr);
+			break;
+		case Message::UPDATE:
+			if (msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&
+      	      	msg.yPos_cellSize < TAM_LIENZO && msg.yPos_cellSize >= 0) {
+				// para servidor:
+        	    celdas[msg.xPos_canvasSize][msg.yPos_cellSize] = msg.cellValue;
+				// para todos los clientes actuales:
+				resp = Message(Message::UPDATE, msg.xPos_canvasSize, msg.yPos_cellSize, msg.cellValue);
+				enviaRed(cliente_sd, resp, conexion, thr); // reenviar actualización al cliente en concreto
+				/*reenviar_update_a_todos_los_clientes*/; // reenviar actualización al resto de clientes /////////////////
+			}
+    	    else {
+    	        std::cout << "MENSAJE inválido: actualización ilegal\n";
+    	    }
+			break;
+		case Message::SYNCRES: // ¿? //
+    	    std::cout << "MENSAJE inválido: servidor recibe 'SYNCRES'\n";
+    	    break;
+    	case Message::EXIT:
+    	default:
+    	    conexion = false;
+			// reenviar señal de cierre al cliente en concreto
+			resp = Message(Message::EXIT, 0, 0, 0);
+            enviaRed(cliente_sd, resp, conexion, thr);
+    	    break;
 		}
 	}
 
@@ -106,6 +143,9 @@ int trataConexion(int cliente_sd, int thr) {
 }
 
 int main(int argc, char** argv){
+
+	if (TAM_CELDA < 0 || TAM_LIENZO < 0 || MAX_USUARIOS < 0)
+		return -1;
 
 	for (int i = 0; i < MAX_USUARIOS; i++)
 		hilosLibres[i] = true;
