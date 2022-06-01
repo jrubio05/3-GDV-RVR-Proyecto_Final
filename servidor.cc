@@ -100,10 +100,24 @@ int trataConexion(int cliente_sd, int thr) {
 		switch (msg.msgType)
 		{
 		case Message::SYNCREQ:
-			// enviar respuesta al cliente en concreto
-			resp = Message(Message::SYNCRES, TAM_LIENZO, TAM_CELDA, msg.cellValue);
-			enviaRed(cliente_sd, resp, conexion, thr);
-			std::cout << "[!] Enviado lienzo pedido por hilo cliente " << thr << "\n";
+			if (msg.cellValue == 0) {
+				// enviar respuesta al cliente en concreto
+				resp = Message(Message::SYNCRES, TAM_LIENZO, TAM_CELDA, msg.cellValue);
+				enviaRed(cliente_sd, resp, conexion, thr);
+				std::cout << "[!] Enviadas propiedades del lienzo pedidas por hilo cliente " << thr << "\n";
+			}
+			else {
+				// enviar el estado actual de las celdas del lienzo
+				for (int i = 0; i < TAM_LIENZO; i++) {
+					for (int j = 0; j < TAM_LIENZO; j++) {
+						Message c = Message(Message::UPDATE, i, j, celdas[i][j]);
+						enviaRed(cliente_sd, c, conexion, thr);
+					}
+				}
+				Message f = Message(Message::SYNCRES, 0, 0, 1);
+				enviaRed(cliente_sd, f, conexion, thr);
+				std::cout << "[!] Enviadas celdas del lienzo pedidas por hilo cliente " << thr << "\n";
+			}
 			break;
 		case Message::UPDATE:
 			if (msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&

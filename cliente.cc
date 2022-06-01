@@ -20,6 +20,7 @@ int TAM_CELDA;
 const int COL_LIENZO = 5;
 
 bool salir = false;
+bool paramsLienzoSincronizados = false;
 bool sincronizado = false;
 int posX = 0;
 int posY = 0;
@@ -139,9 +140,8 @@ int recibeRed(int sd, int** &celdas)
     switch (msg.msgType)
     {
     case Message::SYNCRES:
-        if (!sincronizado) {
-            if (msg.xPos_canvasSize >= 0 && msg.yPos_cellSize >= 0) 
-            {
+        if (!paramsLienzoSincronizados) {
+            if (msg.xPos_canvasSize >= 0 && msg.yPos_cellSize >= 0) {
                 TAM_CELDA = msg.yPos_cellSize;
                 TAM_LIENZO = msg.xPos_canvasSize;
                 /**/
@@ -152,7 +152,7 @@ int recibeRed(int sd, int** &celdas)
                        celdas[i][j] = COL_LIENZO;
                     }
                 }
-                sincronizado = true;
+                paramsLienzoSincronizados = true;
                 std::cout << "[!] Recibidos parámetros del lienzo del servidor\n";
             }
             else {
@@ -161,12 +161,21 @@ int recibeRed(int sd, int** &celdas)
             }
         }
         else {
-            std::cout << "MENSAJE inválido: sincronización doble\n";
+            if (msg.cellValue != 0) {
+                sincronizado = true;
+                std::cout << "[!] Recibidas celdas del lienzo del servidor\n";
+            }
+            else {
+                std::cout << "MENSAJE inválido: sincronización doble\n";
+            }
         }
         break;
     case Message::UPDATE:
-        if (sincronizado && msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&
-            msg.yPos_cellSize < TAM_LIENZO && msg.yPos_cellSize >= 0) {
+        if ( // creo que 'sincronizado' podría omitirse
+            (sincronizado || paramsLienzoSincronizados) &&
+            (msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&
+            msg.yPos_cellSize < TAM_LIENZO && msg.yPos_cellSize >= 0)
+            ) {
             std::cout << "[!] Recibida celda del servidor\n";
             celdas[msg.xPos_canvasSize][msg.yPos_cellSize] = msg.cellValue;
         }
@@ -282,24 +291,39 @@ int trataConexion(int sd)
     int** celdas;
     
     // sincro
-    Message peticion = Message(Message::SYNCREQ, 0, 0, 0);
+    Message peticion = Message(Message::SYNCREQ, 0, 0, 0); // (parte 1: dame parámetros primordiales)
     enviaRed(sd, peticion);
     /**/
     int aux = 0;
+    bool entraUnaSolaVez = true;
     while (!sincronizado && aux == 0) {
         aux = recibeRed(sd, celdas);
+        //
+        if (paramsLienzoSincronizados && entraUnaSolaVez) {
+            entraUnaSolaVez = false;
+            Message peticionSegunda = Message(Message::SYNCREQ, 0, 0, 1); // (parte 2: dame celdas iniciales)
+            if (enviaRed(sd, peticionSegunda) == -1) {
+                std::cout << "NO se pudo compartir el lienzo del servidor\n";
+                return -1;   
+            }
+        }
     }
     if (aux == -1) {
         std::cout << "NO se pudo compartir el lienzo del servidor\n";
         return -1;    
     }
 
+    // ventana de X
+	XLDisplay::init(TAM_LIENZO * TAM_CELDA, TAM_LIENZO * TAM_CELDA, "Proyecto-Redes");
+
+    // renderizado inicial
+    renderizaLienzo(celdas);
+
     int** celdasBis = celdas;
     // se trata la recepción de red durante el bucle principal aparte
     std::thread(trataRedBuclePpal, sd, std::move(celdasBis)).detach();
 
     // bucle principal (input (con posible envío) + render)
-	XLDisplay::init(TAM_LIENZO * TAM_CELDA, TAM_LIENZO * TAM_CELDA, "Proyecto-Redes");
     while (!salir) {
         obtenEntrada(sd);
         //
