@@ -32,7 +32,7 @@ int celdas[TAM_LIENZO][TAM_LIENZO];
 bool aceptaConexiones = true;
 int numUsuarios = 0;
 std::thread usuarios[MAX_USUARIOS];
-bool hilosLibres[MAX_USUARIOS];
+int hilosOcupados[MAX_USUARIOS];
 pthread_mutex_t cerrojoHilos;
 
 int buscaHiloLibre() { // BLOQUEANTE //
@@ -44,7 +44,7 @@ int buscaHiloLibre() { // BLOQUEANTE //
 	}
 	
 	int i = 0;
-	while (i < MAX_USUARIOS && !hilosLibres[i])
+	while (i < MAX_USUARIOS && hilosOcupados[i] != -1)
 		i++;
 	if (i == MAX_USUARIOS) {
 		pthread_mutex_unlock(&cerrojoHilos);
@@ -75,7 +75,7 @@ int trataConexion(int cliente_sd, int thr) {
 	/*
 	pthread_mutex_lock(&cerrojoHilos);
 	numUsuarios++;
-	hilosLibres[thr] = false;
+	hilosOcupados[thr] = cliente_sd;
 	pthread_mutex_unlock(&cerrojoHilos);
 	*/
 
@@ -108,13 +108,17 @@ int trataConexion(int cliente_sd, int thr) {
 		case Message::UPDATE:
 			if (msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&
       	      	msg.yPos_cellSize < TAM_LIENZO && msg.yPos_cellSize >= 0) {
-				std::cout << "[!] Recibida celda del hilo cliente " << thr << ", reenviando a cliente...\n";
+				std::cout << "[!] Recibida celda del hilo cliente " << thr << ", reenviando a los clientes...\n";
 				// para servidor:
         	    celdas[msg.xPos_canvasSize][msg.yPos_cellSize] = msg.cellValue;
 				// para todos los clientes actuales:
 				resp = Message(Message::UPDATE, msg.xPos_canvasSize, msg.yPos_cellSize, msg.cellValue);
-				enviaRed(cliente_sd, resp, conexion, thr); // reenviar actualización al cliente en concreto
-				/*reenviar_update_a_todos_los_clientes*/; // reenviar actualización al resto de clientes /////////////////
+				// reenviar actualización al cliente en concreto
+				enviaRed(cliente_sd, resp, conexion, thr);
+				// reenviar actualización al resto de clientes
+				for (int ind = 0; ind < MAX_USUARIOS; ind++)
+					if (hilosOcupados[ind] != -1 && hilosOcupados[ind] != cliente_sd)
+						enviaRed(hilosOcupados[ind], resp, conexion, thr);
 			}
     	    else {
     	        std::cout << "MENSAJE inválido: actualización ilegal\n";
@@ -138,7 +142,7 @@ int trataConexion(int cliente_sd, int thr) {
 	std::cout << "Hilo " << thr << " ha terminado\n";
 
 	pthread_mutex_lock(&cerrojoHilos);
-	hilosLibres[thr] = true;
+	hilosOcupados[thr] = -1;
 	numUsuarios--;
 	pthread_mutex_unlock(&cerrojoHilos);
 
@@ -151,7 +155,7 @@ int main(int argc, char** argv){
 		return -1;
 
 	for (int i = 0; i < MAX_USUARIOS; i++)
-		hilosLibres[i] = true;
+		hilosOcupados[i] = -1;
 
     for (int i = 0; i < TAM_LIENZO; i++)
         for (int j = 0; j < TAM_LIENZO; j++)
@@ -232,7 +236,7 @@ int main(int argc, char** argv){
 			//TRATAR LA CONEXIÓN (SEGUNDO WHILE)
 			pthread_mutex_lock(&cerrojoHilos);
 			numUsuarios++;
-			hilosLibres[hl] = false;
+			hilosOcupados[hl] = client_sd;
 			pthread_mutex_unlock(&cerrojoHilos);
 			/**/
 			usuarios[hl] = std::thread(trataConexion, client_sd, hl);
