@@ -7,6 +7,7 @@
 #include <string.h>     // memset
 #include <stdio.h>      // perror
 #include <unistd.h>     // sleep
+#include <thread>       // std::thread
 #include <mutex>		// mutex
 //
 #include "XLDisplay.h"  // GRÁFICOS
@@ -23,7 +24,7 @@ bool sincronizado = false;
 int posX = 0;
 int posY = 0;
 
-////////////////////pthread_mutex_t cerrojoBLABLALB;
+pthread_mutex_t cerrojoMundoJuego;
 
 // vvv MÉTODOS DE DIBUJADO vvv //
 
@@ -152,6 +153,7 @@ int recibeRed(int sd, int** &celdas)
                     }
                 }
                 sincronizado = true;
+                std::cout << "[!] Recibidos parámetros del lienzo del servidor\n";
             }
             else {
                 std::cout << "MENSAJE inválido: sincronización ilegal\n";
@@ -165,6 +167,7 @@ int recibeRed(int sd, int** &celdas)
     case Message::UPDATE:
         if (sincronizado && msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&
             msg.yPos_cellSize < TAM_LIENZO && msg.yPos_cellSize >= 0) {
+            std::cout << "[!] Recibida celda del servidor\n";
             celdas[msg.xPos_canvasSize][msg.yPos_cellSize] = msg.cellValue;
         }
         else {
@@ -175,6 +178,7 @@ int recibeRed(int sd, int** &celdas)
         std::cout << "MENSAJE inválido: cliente recibe 'SYNCREQ'\n";
         break;
     case Message::EXIT:
+        std::cout << "[!] Recibida señal de finalización del servidor\n";
     default:
         salir = true;
         break;
@@ -258,6 +262,20 @@ void obtenEntrada(int sd)
 
 // vvv CLIENTE vvv //
 
+int trataRedBuclePpal(int sd, int** celdas)
+{
+    // bucle principal
+    while (!salir) {
+        recibeRed(sd, celdas);
+        //
+        pthread_mutex_lock(&cerrojoMundoJuego);
+        renderizaLienzo(celdas);
+        pthread_mutex_unlock(&cerrojoMundoJuego);
+    }
+
+    return 0;
+}
+
 int trataConexion(int sd)
 {
     // celdas del lado cliente
@@ -276,24 +294,28 @@ int trataConexion(int sd)
         return -1;    
     }
 
-    // bucle principal
+    int** celdasBis = celdas;
+    // se trata la recepción de red durante el bucle principal aparte
+    std::thread(trataRedBuclePpal, sd, std::move(celdasBis)).detach();
+
+    // bucle principal (input (con posible envío) + render)
 	XLDisplay::init(TAM_LIENZO * TAM_CELDA, TAM_LIENZO * TAM_CELDA, "Proyecto-Redes");
     while (!salir) {
-        renderizaLienzo(celdas);
-        std::cout << "UNO\n";
-        obtenEntrada(sd);        ///////// puede que tenga que ser hilo aparte ///////////
-        std::cout << "DOS\n";
-        recibeRed(sd, celdas);   ///////// va a tener que ser hilo aparte, es BLOQUEANTE ///////////
-        std::cout << "TRES\n";
-        /*
-        //recibe render obten --> NO TERMINA, SE QUEDA EN RECIBIR
-        */
+        obtenEntrada(sd);
+        //
+        pthread_mutex_lock(&cerrojoMundoJuego);
+        renderizaLienzo(celdas); // aunque solo va a cambiar la casilla seleccionada...
+        pthread_mutex_unlock(&cerrojoMundoJuego);
     }
 
     return 0;
 }
 
 int main(int argc, char** argv){
+
+    // cerrojo
+    pthread_mutex_init(&cerrojoMundoJuego, NULL);
+
 	// criterios
 	struct addrinfo hints;
 	memset(&hints, 0, sizeof(struct addrinfo));
@@ -332,6 +354,9 @@ int main(int argc, char** argv){
 	
 	// liberar memoria dinámica
 	freeaddrinfo(result);
+
+    // cerrojo
+    pthread_mutex_destroy(&cerrojoMundoJuego);
 
 	// éxito
 	return 0;

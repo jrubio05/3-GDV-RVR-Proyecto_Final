@@ -103,10 +103,12 @@ int trataConexion(int cliente_sd, int thr) {
 			// enviar respuesta al cliente en concreto
 			resp = Message(Message::SYNCRES, TAM_LIENZO, TAM_CELDA, msg.cellValue);
 			enviaRed(cliente_sd, resp, conexion, thr);
+			std::cout << "[!] Enviado lienzo pedido por hilo cliente " << thr << "\n";
 			break;
 		case Message::UPDATE:
 			if (msg.xPos_canvasSize < TAM_LIENZO && msg.xPos_canvasSize >= 0 &&
       	      	msg.yPos_cellSize < TAM_LIENZO && msg.yPos_cellSize >= 0) {
+				std::cout << "[!] Recibida celda del hilo cliente " << thr << ", reenviando a cliente...\n";
 				// para servidor:
         	    celdas[msg.xPos_canvasSize][msg.yPos_cellSize] = msg.cellValue;
 				// para todos los clientes actuales:
@@ -122,6 +124,7 @@ int trataConexion(int cliente_sd, int thr) {
     	    std::cout << "MENSAJE inválido: servidor recibe 'SYNCRES'\n";
     	    break;
     	case Message::EXIT:
+			std::cout << "[!] Recibida señal de finalización por hilo cliente " << thr << ", reenviando a cliente...\n";
     	default:
     	    conexion = false;
 			// reenviar señal de cierre al cliente en concreto
