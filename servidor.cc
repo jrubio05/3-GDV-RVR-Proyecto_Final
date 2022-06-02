@@ -267,9 +267,9 @@ int main(int argc, char** argv){
 		///pthread_mutex_unlock(&cerrojoHilos);
 	}
 
-	// (i) no hay que esperar a que terminen los hilos de usuario (detach)
-	for (int i = 0; i < MAX_USUARIOS; i++)
-		usuarios[i].join();
+	////// (i) no hay que esperar a que terminen los hilos de usuario (detach)
+	////for (int i = 0; i < MAX_USUARIOS; i++)
+	////	usuarios[i].join();
 	
 	// ... // cerrar socket
 	

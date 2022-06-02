@@ -332,6 +332,15 @@ int trataConexion(int sd)
         pthread_mutex_unlock(&cerrojoMundoJuego);
     }
 
+    // liberar memoria dinámica de las celdas (si se usó)
+    if (celdas) {
+        for(int i = 0; i < TAM_LIENZO; i++) {
+            if (celdas[i])
+                delete celdas[i];
+        }
+        delete celdas;
+    }
+
     return 0;
 }
 
@@ -387,9 +396,3 @@ int main(int argc, char** argv){
 }
 
 // ^^^ CLIENTE ^^^ //
-
-/*
-TENGO QUE BORRAR LA MEMORIA DINÁMICA DE LAS CELDAS **
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-QUE NO SE ME OLVIDE
-*/
